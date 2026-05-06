@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Selling sites by country — choropleth</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem 1.25rem 2rem; color: #1a1a1a; }
+    h1 { font-size: 1.15rem; font-weight: 650; margin: 0 0 0.35rem; }
+    .sub { font-size: 0.85rem; color: #444; max-width: 52rem; line-height: 1.45; margin-bottom: 1rem; }
+    textarea {
+      width: 100%; max-width: 40rem; min-height: 6rem; font-family: ui-monospace, monospace;
+      font-size: 0.8rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 6px;
+    }
+    button {
+      margin: 0.5rem 0 1rem; padding: 0.45rem 0.9rem; font-size: 0.9rem; cursor: pointer;
+      border-radius: 6px; border: 1px solid #333; background: #1a1a1a; color: #fff;
+    }
+    button:hover { background: #333; }
+    #map-wrap { width: 100%; max-width: 960px; }
+    #map-wrap svg { display: block; width: 100%; height: auto; }
+    .country { stroke: #fff; stroke-width: 0.35; cursor: default; }
+    .country.no-data { fill: #ececec; }
+    #legend { font-size: 0.75rem; margin-top: 0.5rem; color: #555; }
+    #tip {
+      position: fixed; pointer-events: none; opacity: 0; background: rgba(20,20,20,0.92);
+      color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; z-index: 20;
+      max-width: 280px; line-height: 1.35;
+    }
+    code { font-size: 0.8em; background: #f4f4f4; padding: 0.1em 0.35em; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Selling sites by country</h1>
+  <p class="sub" style="margin-top:0"><strong>Loaded:</strong> Mar 2026 (<code>2026-03-01</code>) selling_sites slice — Trino Query 1. Map renders on open.</p>
+  <p class="sub">
+    Paste the CSV/TSV from Trino after running <code>selling_sites_geography_provider_by_country.sql</code> (Query 1).
+    Expected columns: <code>merchant_business_country</code>, <code>n_selling_sites</code> (header row optional).
+    Rows with <code>(unknown)</code> are not drawn. For <strong>% payment providers</strong>, run
+    <code>selling_sites_payment_rail_mix_by_country.sql</code> — that is <em>Wix rail mix by country</em>, not national market share.
+  </p>
+  <textarea id="paste" placeholder='merchant_business_country	n_selling_sites	pct_of_all_selling_sites
+US	4200	12.5
+GB	800	2.3'></textarea>
+  <div><button type="button" id="go">Render map</button></div>
+  <div id="map-wrap"></div>
+  <div id="legend"></div>
+  <div id="tip"></div>
+
+  <!-- Auto-loaded: selling_sites Mar 2026 (anchor 2026-03-01), QA excluded, Query 1 -->
+  <script type="application/json" id="choropleth-embed">[["US",103187,43.74],["GB",32600,13.82],["FR",12085,5.12],["CA",11725,4.97],["AU",10906,4.62],["BR",7182,3.04],["DE",7071,3.0],["JP",3731,1.58],["IN",3484,1.48],["CH",3477,1.47],["NL",2787,1.18],["IT",2705,1.15],["NZ",2690,1.14],["BE",2676,1.13],["MX",2565,1.09],["IL",2438,1.03],["ES",2369,1.0],["TR",1666,0.71],["IE",1561,0.66],["AT",1507,0.64],["ZA",1445,0.61],["HK",1135,0.48],["SG",980,0.42],["SE",912,0.39],["NO",912,0.39],["PT",794,0.34],["CL",781,0.33],["CO",686,0.29],["PL",613,0.26],["CZ",534,0.23],["AR",507,0.21],["DK",456,0.19],["AE",418,0.18],["PR",413,0.18],["GR",413,0.18],["FI",400,0.17],["MY",389,0.16],["UY",359,0.15],["RO",328,0.14],["LT",304,0.13],["TH",291,0.12],["PE",287,0.12],["UA",264,0.11],["HU",261,0.11],["PH",246,0.1],["LV",192,0.08],["MT",186,0.08],["CY",185,0.08],["CR",157,0.07],["LU",153,0.06],["SI",139,0.06],["RE",138,0.06],["BG",133,0.06],["EE",132,0.06],["TW",126,0.05],["KR",120,0.05],["SK",109,0.05],["(unknown)",101,0.04],["ID",97,0.04],["GP",95,0.04],["NG",93,0.04],["HR",90,0.04],["PA",79,0.03],["MQ",63,0.03],["IS",60,0.03],["GT",58,0.02],["GH",56,0.02],["GE",54,0.02],["EG",51,0.02],["KE",45,0.02],["JM",45,0.02],["CN",44,0.02],["EC",42,0.02],["RS",26,0.01],["BS",24,0.01],["MA",23,0.01],["VN",23,0.01],["VI",19,0.01],["DO",19,0.01],["AW",17,0.01],["GU",15,0.01],["GF",15,0.01],["HN",14,0.01],["LI",13,0.01],["SV",11,0.0],["MC",11,0.0],["MF",11,0.0],["PK",10,0.0],["ZM",9,0.0],["CW",9,0.0],["BB",8,0.0],["TT",8,0.0],["MU",8,0.0],["JE",8,0.0],["LC",8,0.0],["GI",7,0.0],["NA",7,0.0],["TC",7,0.0],["RW",7,0.0],["PY",7,0.0],["AD",7,0.0],["SA",6,0.0],["AG",6,0.0],["IM",6,0.0],["JO",6,0.0],["VG",6,0.0],["BM",6,0.0],["BZ",5,0.0],["UG",5,0.0],["MD",5,0.0],["LK",5,0.0],["BW",5,0.0],["AL",5,0.0],["AM",5,0.0],["TZ",5,0.0],["MK",4,0.0],["YT",4,0.0],["BH",4,0.0],["CI",4,0.0],["KZ",4,0.0],["EU",3,0.0],["GD",3,0.0],["QA",3,0.0],["VE",3,0.0],["ZW",3,0.0],["KN",3,0.0],["ME",3,0.0],["PF",3,0.0],["BD",2,0.0],["GG",2,0.0],["KW",2,0.0],["KG",2,0.0],["NI",2,0.0],["FK",2,0.0],["SX",2,0.0],["BN",2,0.0],["NP",1,0.0],["SH",1,0.0],["BA",1,0.0],["SN",1,0.0],["KY",1,0.0],["BF",1,0.0],["VC",1,0.0],["IQ",1,0.0],["AQ",1,0.0],["ET",1,0.0],["KH",1,0.0],["DM",1,0.0],["MO",1,0.0],["BO",1,0.0],["FJ",1,0.0],["MG",1,0.0],["AN",1,0.0],["BL",1,0.0],["BQ",1,0.0],["CK",1,0.0],["GY",1,0.0],["MN",1,0.0],["OM",1,0.0],["MP",1,0.0],["TN",1,0.0],["NC",1,0.0],["GL",1,0.0]]</script>
+
+  <script>
+(function () {
+  const GEO_URL = 'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson';
+
+  /** Normalize keys from enrichments → ISO A2 for join */
+  function normIso(code) {
+    if (!code || code === '(unknown)') return null;
+    const c = String(code).trim().toUpperCase();
+    if (c === 'UK') return 'GB';
+    return c.length === 2 ? c : null;
+  }
+
+  function parseTable(text) {
+    const lines = text.trim().split(/\r?\n/).filter(Boolean);
+    if (!lines.length) return new Map();
+    let start = 0;
+    let colCountry = 0;
+    let colN = 1;
+    const head = lines[0].split(/\t|,(?=")|,(?=[^"])/).map(s => s.replace(/^"|"$/g, '').trim().toLowerCase());
+    if (head.some(h => h.includes('merchant_business_country') || h === 'country')) {
+      start = 1;
+      const idx = head.findIndex(h => h.includes('merchant_business_country') || h === 'country');
+      const idxN = head.findIndex(h => h.includes('n_selling') || h === 'n_sites' || h === 'n');
+      if (idx >= 0) colCountry = idx;
+      if (idxN >= 0) colN = idxN;
+    }
+    const map = new Map();
+    for (let i = start; i < lines.length; i++) {
+      const parts = lines[i].split('\t');
+      const cells = parts.length > 1 ? parts : lines[i].split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(s => s.replace(/^"|"$/g, '').trim());
+      const raw = cells[colCountry];
+      const n = parseFloat(String(cells[colN] || '').replace(/,/g, ''));
+      const iso = normIso(raw);
+      if (!iso || !Number.isFinite(n)) continue;
+      map.set(iso, (map.get(iso) || 0) + n);
+    }
+    return map;
+  }
+
+  function isoFromFeature(d) {
+    const p = d.properties || {};
+    return (p['ISO3166-1-Alpha-2'] || p.ISO_A2 || p.iso_a2 || '').toString().toUpperCase() || null;
+  }
+
+  let worldGeo = null;
+
+  async function ensureGeo() {
+    if (worldGeo) return worldGeo;
+    const res = await fetch(GEO_URL);
+    if (!res.ok) throw new Error('GeoJSON fetch failed');
+    worldGeo = await res.json();
+    return worldGeo;
+  }
+
+  function rowsToTsv(rows) {
+    const lines = ['merchant_business_country\tn_selling_sites\tpct_of_all_selling_sites'];
+    for (const r of rows) {
+      lines.push(r[0] + '\t' + r[1] + '\t' + r[2]);
+    }
+    return lines.join('\n');
+  }
+
+  async function renderFromDataMap(data) {
+    const tip = document.getElementById('tip');
+    const wrap = document.getElementById('map-wrap');
+    const legend = document.getElementById('legend');
+    wrap.innerHTML = '';
+    legend.textContent = '';
+    if (!data.size) {
+      legend.textContent = 'No rows parsed. Use 2-letter country codes in the first column.';
+      return;
+    }
+    let geo;
+    try {
+      geo = await ensureGeo();
+    } catch (e) {
+      legend.textContent = 'Could not load world GeoJSON (network/CORS). Open via HTTPS or gist.githack.';
+      return;
+    }
+    const values = [...data.values()];
+    const max = d3.max(values);
+    const color = d3.scaleSequentialLog(d3.interpolateBlues).domain([1, max]);
+    const width = 920;
+    const height = 480;
+    const svg = d3.select('#map-wrap').append('svg').attr('viewBox', `0 0 ${width} ${height}`);
+    const g = svg.append('g');
+    const projection = d3.geoNaturalEarth1().fitSize([width, height], geo);
+    const path = d3.geoPath(projection);
+    g.selectAll('path.country')
+      .data(geo.features)
+      .join('path')
+      .attr('class', d => {
+        const iso = isoFromFeature(d);
+        return 'country' + (!iso || !data.has(iso) ? ' no-data' : '');
+      })
+      .attr('d', path)
+      .attr('fill', d => {
+        const iso = isoFromFeature(d);
+        if (!iso || !data.has(iso)) return '#ececec';
+        const v = data.get(iso);
+        return color(v);
+      })
+      .on('mousemove', function (event, d) {
+        const iso = isoFromFeature(d);
+        const v = iso && data.has(iso) ? data.get(iso) : null;
+        tip.style.opacity = v != null ? 1 : 0;
+        if (v != null) {
+          tip.style.left = (event.clientX + 14) + 'px';
+          tip.style.top = (event.clientY + 10) + 'px';
+          tip.textContent = iso + ': ' + v.toLocaleString() + ' sites';
+        }
+      })
+      .on('mouseleave', () => { tip.style.opacity = 0; });
+    const total = d3.sum([...data.values()]);
+    legend.textContent =
+      'Mar 2026 selling_sites cohort — shaded by n_selling_sites. ' + data.size + ' country codes; sum = ' +
+      Math.round(total).toLocaleString() + ' sites.';
+  }
+
+  document.getElementById('go').addEventListener('click', async () => {
+    const legend = document.getElementById('legend');
+    let data;
+    try {
+      data = parseTable(document.getElementById('paste').value);
+    } catch (e) {
+      legend.textContent = 'Parse error: check TSV/CSV format.';
+      return;
+    }
+    await renderFromDataMap(data);
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('choropleth-embed');
+    if (!el || !el.textContent.trim()) return;
+    try {
+      const rows = JSON.parse(el.textContent);
+      const tsv = rowsToTsv(rows);
+      document.getElementById('paste').value = tsv;
+      document.getElementById('go').click();
+    } catch (e) {
+      document.getElementById('legend').textContent = 'Embedded data parse error.';
+    }
+  });
+})();
+  </script>
+</body>
+</html>
