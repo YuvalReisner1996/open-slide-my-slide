@@ -24,6 +24,14 @@ const fmtUsdShort = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 });
 
+/** Compact share label: "<1%" for fractions below 0.5%, "Math.round" otherwise. */
+function fmtPct(numerator: number, denominator: number): string {
+  if (denominator <= 0) return '0%';
+  const pct = (100 * numerator) / denominator;
+  if (pct > 0 && pct < 0.5) return '<1%';
+  return `${Math.round(pct)}%`;
+}
+
 /**
  * Choropleth UI for unmonetized selling sites — Mar 2026 cohort.
  * All embedded counts and tooltip payment-provider rows live in `./mapCohortData.ts` (refresh together from Trino).
@@ -383,22 +391,25 @@ const Choropleth: Page = () => {
   }, [mapW, mapH]);
 
   const [hover, setHover] = useState<HoverTip | null>(null);
+  const [sortMode, setSortMode] = useState<'sites' | 'gpv'>('sites');
 
   const topLines = useMemo(() => {
-    return Object.entries(UNMON_BY_ISO)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 24)
-      .map(([iso, n]) => {
-        const pct = Math.round((100 * n) / COHORT_TOTAL);
-        const gpv = ONLINE_GPV_USD_BY_ISO[iso] ?? 0;
-        return {
-          iso,
-          n,
-          pct,
-          gpv,
-        };
-      });
-  }, []);
+    const rows = Object.keys(UNMON_BY_ISO).map((iso) => {
+      const n = UNMON_BY_ISO[iso] ?? 0;
+      const gpv = ONLINE_GPV_USD_BY_ISO[iso] ?? 0;
+      return {
+        iso,
+        n,
+        gpv,
+        sitesPct: (100 * n) / COHORT_TOTAL,
+        gpvPct: (100 * gpv) / COHORT_ONLINE_GPV_USD_MAR2026,
+      };
+    });
+    rows.sort((a, b) =>
+      sortMode === 'sites' ? b.n - a.n || b.gpv - a.gpv : b.gpv - a.gpv || b.n - a.n,
+    );
+    return rows.slice(0, 24);
+  }, [sortMode]);
 
   return (
     <div
@@ -597,7 +608,8 @@ const Choropleth: Page = () => {
                     fontWeight: 500,
                   }}
                 >
-                  Mar '26 online GPV · {fmtUsdShort.format(hover.gpv)}
+                  Mar '26 online GPV · {fmtUsdShort.format(hover.gpv)} (
+                  {fmtPct(hover.gpv, COHORT_ONLINE_GPV_USD_MAR2026)})
                 </p>
               )}
               <div
@@ -680,10 +692,10 @@ const Choropleth: Page = () => {
         >
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'auto 1fr auto',
-              columnGap: 12,
-              alignItems: 'baseline',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
               margin: '0 0 8px',
             }}
           >
@@ -695,26 +707,69 @@ const Choropleth: Page = () => {
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 margin: 0,
-                gridColumn: '1 / span 2',
               }}
             >
               Top countries
             </p>
-            <p
+            <div
+              role="group"
+              aria-label="Sort top countries by"
               style={{
-                fontFamily: font.mono,
-                fontSize: 14,
-                color: palette.muted,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                margin: 0,
-                textAlign: 'right',
+                display: 'inline-flex',
+                border: `1px solid ${palette.stroke}`,
+                borderRadius: 999,
+                padding: 2,
+                background: palette.surfaceInset,
               }}
             >
-              Mar '26 GPV
-            </p>
+              {(['sites', 'gpv'] as const).map((mode) => {
+                const active = sortMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setSortMode(mode)}
+                    aria-pressed={active}
+                    style={{
+                      fontFamily: font.mono,
+                      fontSize: 14,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      border: 'none',
+                      background: active ? palette.accent : 'transparent',
+                      color: active ? '#ffffff' : palette.muted,
+                      fontWeight: active ? 650 : 500,
+                      cursor: active ? 'default' : 'pointer',
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {mode === 'sites' ? 'Sites' : 'GPV'}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          {topLines.map(({ iso, n, pct, gpv }) => (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr auto',
+              columnGap: 12,
+              alignItems: 'baseline',
+              margin: '0 0 8px',
+              fontFamily: font.mono,
+              fontSize: 13,
+              color: palette.muted,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+            }}
+          >
+            <span>ISO</span>
+            <span>Sites (% of cohort)</span>
+            <span style={{ textAlign: 'right' }}>Mar '26 GPV (% of cohort)</span>
+          </div>
+          {topLines.map(({ iso, n, gpv, sitesPct, gpvPct }) => (
             <div
               key={iso}
               style={{
@@ -732,17 +787,20 @@ const Choropleth: Page = () => {
               <span style={{ fontWeight: 600 }}>{iso}</span>
               <span style={{ minWidth: 0 }}>
                 {n.toLocaleString()}{' '}
-                <span style={{ color: palette.muted }}>({pct}%)</span>
+                <span style={{ color: palette.muted }}>({fmtPct(n, COHORT_TOTAL)})</span>
               </span>
               <span style={{ fontWeight: 600, textAlign: 'right' }}>
-                {fmtUsdCompact.format(gpv)}
+                {fmtUsdCompact.format(gpv)}{' '}
+                <span style={{ color: palette.muted, fontWeight: 500 }}>
+                  ({fmtPct(gpv, COHORT_ONLINE_GPV_USD_MAR2026)})
+                </span>
               </span>
             </div>
           ))}
           <p style={{ fontFamily: font.sans, fontSize: 20, color: palette.muted, marginTop: 20 }}>
-            % is share of all unmonetized selling sites (n = {COHORT_TOTAL.toLocaleString()}). GPV
-            is Mar 2026 online USD per cohort country (cohort total{' '}
-            {fmtUsdCompact.format(COHORT_ONLINE_GPV_USD_MAR2026)}).
+            Sites % is share of cohort (n = {COHORT_TOTAL.toLocaleString()}); GPV % is share of
+            cohort online GPV (Mar 2026 · {fmtUsdCompact.format(COHORT_ONLINE_GPV_USD_MAR2026)}).
+            Toggle <em>Sites / GPV</em> to re-rank the top 24.
           </p>
         </div>
       </div>
