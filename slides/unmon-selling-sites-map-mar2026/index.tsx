@@ -394,17 +394,11 @@ const Choropleth: Page = () => {
   const [sortMode, setSortMode] = useState<'sites' | 'gpv'>('sites');
 
   const topLines = useMemo(() => {
-    const rows = Object.keys(UNMON_BY_ISO).map((iso) => {
-      const n = UNMON_BY_ISO[iso] ?? 0;
-      const gpv = ONLINE_GPV_USD_BY_ISO[iso] ?? 0;
-      return {
-        iso,
-        n,
-        gpv,
-        sitesPct: (100 * n) / COHORT_TOTAL,
-        gpvPct: (100 * gpv) / COHORT_ONLINE_GPV_USD_MAR2026,
-      };
-    });
+    const rows = Object.keys(UNMON_BY_ISO).map((iso) => ({
+      iso,
+      n: UNMON_BY_ISO[iso] ?? 0,
+      gpv: ONLINE_GPV_USD_BY_ISO[iso] ?? 0,
+    }));
     rows.sort((a, b) =>
       sortMode === 'sites' ? b.n - a.n || b.gpv - a.gpv : b.gpv - a.gpv || b.n - a.n,
     );
@@ -677,9 +671,9 @@ const Choropleth: Page = () => {
 
         <div
           style={{
-            flex: '0 0 320px',
-            width: 320,
-            maxWidth: 320,
+            flex: '0 0 400px',
+            width: 400,
+            maxWidth: 400,
             minWidth: 0,
             background: palette.surface,
             borderRadius: 14,
@@ -755,7 +749,7 @@ const Choropleth: Page = () => {
             style={{
               display: 'grid',
               gridTemplateColumns: 'auto 1fr auto',
-              columnGap: 12,
+              columnGap: 14,
               alignItems: 'baseline',
               margin: '0 0 8px',
               fontFamily: font.mono,
@@ -763,25 +757,27 @@ const Choropleth: Page = () => {
               color: palette.muted,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
+              whiteSpace: 'nowrap',
             }}
           >
             <span>ISO</span>
-            <span>Sites (% of cohort)</span>
-            <span style={{ textAlign: 'right' }}>Mar '26 GPV (% of cohort)</span>
+            <span>Sites (%)</span>
+            <span style={{ textAlign: 'right' }}>Mar '26 GPV (%)</span>
           </div>
-          {topLines.map(({ iso, n, gpv, sitesPct, gpvPct }) => (
+          {topLines.map(({ iso, n, gpv }) => (
             <div
               key={iso}
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'auto 1fr auto',
-                columnGap: 12,
+                columnGap: 14,
                 alignItems: 'baseline',
                 margin: '0 0 9px',
                 fontFamily: font.mono,
                 fontSize: 21,
                 color: palette.text,
                 lineHeight: 1.25,
+                whiteSpace: 'nowrap',
               }}
             >
               <span style={{ fontWeight: 600 }}>{iso}</span>
