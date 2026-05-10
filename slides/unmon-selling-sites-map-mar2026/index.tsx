@@ -1,11 +1,32 @@
 import type { Page, SlideMeta } from '@open-slide/core';
 import { useEffect, useMemo, useState } from 'react';
 
-import { COHORT_TOTAL, UNMON_BY_ISO, topGpRailsForCountry } from './mapCohortData';
+import {
+  COHORT_ONLINE_GPV_USD_MAR2026,
+  COHORT_TOTAL,
+  ONLINE_GPV_USD_BY_ISO,
+  UNMON_BY_ISO,
+  topGpProvidersForCountry,
+} from './mapCohortData';
+
+/** Compact USD: $1.4M, $87K, $574, $8 — used in the sidebar so each row stays narrow. */
+const fmtUsdCompact = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+
+/** Tooltip / cover number — fuller precision. */
+const fmtUsdShort = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 0,
+});
 
 /**
  * Choropleth UI for unmonetized selling sites — Mar 2026 cohort.
- * All embedded counts and tooltip rails live in `./mapCohortData.ts` (refresh together from Trino).
+ * All embedded counts and tooltip payment-provider rows live in `./mapCohortData.ts` (refresh together from Trino).
  */
 
 /**
@@ -133,6 +154,7 @@ type PathRow = { iso: string; d: string };
 type HoverTip = {
   iso: string;
   n: number;
+  gpv: number;
   x: number;
   y: number;
 };
@@ -206,7 +228,8 @@ const Cover: Page = () => (
         marginTop: 56,
       }}
     >
-      Cohort total · {COHORT_TOTAL.toLocaleString()} sites
+      Cohort total · {COHORT_TOTAL.toLocaleString()} sites · Mar 2026 online GPV{' '}
+      {fmtUsdCompact.format(COHORT_ONLINE_GPV_USD_MAR2026)}
     </p>
   </div>
 );
@@ -367,9 +390,12 @@ const Choropleth: Page = () => {
       .slice(0, 24)
       .map(([iso, n]) => {
         const pct = Math.round((100 * n) / COHORT_TOTAL);
+        const gpv = ONLINE_GPV_USD_BY_ISO[iso] ?? 0;
         return {
           iso,
-          label: `${iso} · ${n.toLocaleString()} (${pct}%)`,
+          n,
+          pct,
+          gpv,
         };
       });
   }, []);
@@ -417,7 +443,8 @@ const Choropleth: Page = () => {
             flexShrink: 0,
           }}
         >
-          Mar 2026 · n = {COHORT_TOTAL.toLocaleString()}
+          Mar 2026 · n = {COHORT_TOTAL.toLocaleString()} · GPV{' '}
+          {fmtUsdCompact.format(COHORT_ONLINE_GPV_USD_MAR2026)}
         </p>
       </div>
 
@@ -485,7 +512,8 @@ const Choropleth: Page = () => {
                     const iso = t.dataset?.iso ?? t.getAttribute?.('data-iso');
                     if (!iso) return;
                     const n = UNMON_BY_ISO[iso] ?? 0;
-                    setHover({ iso, n, x: e.clientX, y: e.clientY });
+                    const gpv = ONLINE_GPV_USD_BY_ISO[iso] ?? 0;
+                    setHover({ iso, n, gpv, x: e.clientX, y: e.clientY });
                   }}
                   onMouseLeave={() => setHover(null)}
                 >
@@ -559,6 +587,19 @@ const Choropleth: Page = () => {
               >
                 {hover.n.toLocaleString()} sites ({Math.round((100 * hover.n) / COHORT_TOTAL)}%)
               </p>
+              {hover.gpv > 0 && (
+                <p
+                  style={{
+                    fontFamily: font.sans,
+                    fontSize: 22,
+                    color: palette.muted,
+                    margin: '6px 0 0',
+                    fontWeight: 500,
+                  }}
+                >
+                  Mar '26 online GPV · {fmtUsdShort.format(hover.gpv)}
+                </p>
+              )}
               <div
                 style={{
                   marginTop: 14,
@@ -579,8 +620,8 @@ const Choropleth: Page = () => {
                   Top Payment providers
                 </p>
                 {(() => {
-                  const rails = topGpRailsForCountry(hover.iso);
-                  if (!rails?.length) {
+                  const providers = topGpProvidersForCountry(hover.iso);
+                  if (!providers?.length) {
                     return (
                       <p
                         style={{
@@ -595,7 +636,7 @@ const Choropleth: Page = () => {
                       </p>
                     );
                   }
-                  return rails.map(([provider, pct]) => (
+                  return providers.map(([provider, pct]) => (
                     <p
                       key={`${hover.iso}-${provider}`}
                       style={{
@@ -615,7 +656,7 @@ const Choropleth: Page = () => {
                   ));
                 })()}
                 <p style={{ fontFamily: font.sans, fontSize: 18, color: palette.muted, margin: '10px 0 0', lineHeight: 1.35 }}>
-                  gp_agg Mar 2026; % can exceed 100% summed across rails when merchants use several providers.
+                  gp_agg Mar 2026; % can exceed 100% summed across providers when merchants use several at checkout.
                 </p>
               </div>
             </div>
@@ -637,34 +678,71 @@ const Choropleth: Page = () => {
             boxSizing: 'border-box',
           }}
         >
-          <p
+          <div
             style={{
-              fontFamily: font.mono,
-              fontSize: 20,
-              color: palette.accentMuted,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              margin: '0 0 16px',
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr auto',
+              columnGap: 12,
+              alignItems: 'baseline',
+              margin: '0 0 8px',
             }}
           >
-            Top countries
-          </p>
-          {topLines.map(({ iso, label }) => (
             <p
-              key={iso}
               style={{
                 fontFamily: font.mono,
-                fontSize: 24,
+                fontSize: 20,
+                color: palette.accentMuted,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                margin: 0,
+                gridColumn: '1 / span 2',
+              }}
+            >
+              Top countries
+            </p>
+            <p
+              style={{
+                fontFamily: font.mono,
+                fontSize: 14,
+                color: palette.muted,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                margin: 0,
+                textAlign: 'right',
+              }}
+            >
+              Mar '26 GPV
+            </p>
+          </div>
+          {topLines.map(({ iso, n, pct, gpv }) => (
+            <div
+              key={iso}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'auto 1fr auto',
+                columnGap: 12,
+                alignItems: 'baseline',
+                margin: '0 0 9px',
+                fontFamily: font.mono,
+                fontSize: 21,
                 color: palette.text,
-                margin: '0 0 10px',
                 lineHeight: 1.25,
               }}
             >
-              {label}
-            </p>
+              <span style={{ fontWeight: 600 }}>{iso}</span>
+              <span style={{ minWidth: 0 }}>
+                {n.toLocaleString()}{' '}
+                <span style={{ color: palette.muted }}>({pct}%)</span>
+              </span>
+              <span style={{ fontWeight: 600, textAlign: 'right' }}>
+                {fmtUsdCompact.format(gpv)}
+              </span>
+            </div>
           ))}
-          <p style={{ fontFamily: font.sans, fontSize: 20, color: palette.muted, marginTop: 24 }}>
-            Percentages are share of all unmonetized selling sites (n = {COHORT_TOTAL.toLocaleString()}).
+          <p style={{ fontFamily: font.sans, fontSize: 20, color: palette.muted, marginTop: 20 }}>
+            % is share of all unmonetized selling sites (n = {COHORT_TOTAL.toLocaleString()}). GPV
+            is Mar 2026 online USD per cohort country (cohort total{' '}
+            {fmtUsdCompact.format(COHORT_ONLINE_GPV_USD_MAR2026)}).
           </p>
         </div>
       </div>

@@ -1,45 +1,53 @@
 /**
- * Single source of truth for the Mar 2026 unmon selling-sites map: shaded counts + tooltip rails.
+ * Single source of truth for the Mar 2026 unmon selling-sites map: shaded counts +
+ * sidebar online GPV per country + tooltip payment-provider mix.
  *
- * **Whenever you refresh the map from Trino, update everything in this file in one pass** — never
- * change only `UNMON_BY_ISO` / `COHORT_TOTAL` without refreshing `TOP_GP_RAILS_BY_ISO` (and vice
- * versa). Both must reflect the same cohort (unmon selling sites, excluding GPV monetized-path
- * mismatches for Mar ’26).
+ * **Whenever you refresh the map from Trino, update everything in this file in one pass** —
+ * never change only one of `UNMON_BY_ISO` / `ONLINE_GPV_USD_BY_ISO` / `COHORT_TOTAL` /
+ * `COHORT_ONLINE_GPV_USD_MAR2026` / `TOP_GP_PROVIDERS_BY_ISO`. All must reflect the same
+ * cohort (unmon selling sites, excluding GPV monetized-path mismatches for Mar '26).
  *
  * SQL sources (same exclusions):
- * - Country counts → embed in slide: `mbr/unmon_selling_sites_map_counts_excluding_gpv_mismatch_mar2026.sql` (or successor)
- * - Top payment providers by country → `mbr/msid_country_payment_providers_from_gpv_agg.sql` on that cohort
+ * - Country counts + Mar 2026 online GPV → `transaction_fee/unmon_selling_sites_map_counts_excluding_gpv_mismatch_mar2026.sql`
+ * - Top payment providers by country → `transaction_fee/msid_country_payment_providers_from_gpv_agg.sql` on that cohort
  *
- * Cohort definition: QA excluded; unmon = NOT (is_monetized_payment_connected OR current pinwheel);
- * exclude sites with Mar ’26 `gpv_agg` on a monetized provider path (`wixpay_%`, `pinwheel`, etc. —
- * same CASE as `gpv_agg_calendar_year_provider_path_split.sql`).
+ * Cohort definition: QA excluded; unmon = NOT (is_wp_connected OR is_monetized_payment_connected OR
+ * current `pinwheel` on providers_active_scd — not `authorize_net_powered_by_pinwheel`); exclude sites
+ * with Mar '26 `gpv_agg` on a monetized provider path (`wixpay_%`, `pinwheel` rows only, optional
+ * stripe/paypal/square per flag — same CASE as `transaction_fee/gpv_agg_calendar_year_provider_path_split.sql`).
+ *
+ * `ONLINE_GPV_USD_BY_ISO` = SUM(prod.ecom.gpv_agg.grand_total_usd) per country for the cohort msids in
+ * Mar 2026 (all providers — by construction these are non-monetized paths only after the exclusion).
  */
 
 /** Selling-unmon cohort total after exclusions (must equal sum of `UNMON_BY_ISO`). */
-export const COHORT_TOTAL = 13808;
+export const COHORT_TOTAL = 13804;
+
+/** Cohort total Mar 2026 online GPV in USD (must equal sum of `ONLINE_GPV_USD_BY_ISO`). */
+export const COHORT_ONLINE_GPV_USD_MAR2026 = 31_795_065.73;
 
 /** Site counts by ISO — countries with zero after exclusions are omitted. */
 export const UNMON_BY_ISO: Record<string, number> = {
-  IN: 2674,
+  IN: 2673,
   TR: 1657,
-  IL: 1354,
-  ZA: 1142,
+  IL: 1353,
+  ZA: 1141,
   BR: 654,
   CA: 626,
-  CL: 556,
-  CO: 463,
-  US: 345,
+  CL: 557,
+  CO: 462,
+  US: 346,
   AR: 329,
   JP: 319,
-  FR: 301,
-  BE: 279,
+  FR: 299,
+  BE: 278,
   NL: 271,
   UY: 258,
-  MX: 234,
+  MX: 235,
   GB: 207,
   PE: 199,
   UA: 190,
-  CH: 133,
+  CH: 132,
   NO: 107,
   PL: 101,
   SG: 101,
@@ -54,8 +62,8 @@ export const UNMON_BY_ISO: Record<string, number> = {
   CZ: 46,
   LV: 46,
   ES: 41,
-  GT: 38,
   PA: 38,
+  GT: 38,
   NZ: 36,
   TH: 35,
   EG: 34,
@@ -64,74 +72,190 @@ export const UNMON_BY_ISO: Record<string, number> = {
   TW: 29,
   GE: 27,
   EE: 26,
-  KR: 25,
+  KR: 24,
   IE: 22,
   PT: 20,
   JM: 16,
   LT: 15,
   VI: 14,
-  IT: 13,
   HR: 13,
+  IT: 13,
   MA: 11,
   AW: 10,
   BS: 10,
   CW: 9,
-  ZM: 7,
   DE: 7,
-  AT: 7,
   FI: 7,
+  ZM: 7,
   AE: 7,
+  AT: 7,
   RW: 6,
   PY: 6,
   RS: 6,
-  BW: 5,
-  NA: 5,
-  SI: 5,
-  BM: 5,
-  HK: 5,
-  MC: 5,
   JE: 5,
+  HK: 5,
   MT: 5,
+  BW: 5,
+  MC: 5,
+  SI: 5,
   VN: 5,
-  HN: 4,
-  SA: 4,
-  CY: 4,
-  IM: 4,
+  NA: 5,
+  BM: 5,
   RE: 4,
-  PR: 4,
   SK: 4,
+  HN: 4,
+  IM: 4,
+  CY: 4,
+  SA: 4,
+  PR: 4,
   CI: 3,
-  AM: 3,
   AD: 3,
-  MK: 3,
-  UG: 3,
+  AM: 3,
   VG: 3,
+  MK: 3,
   BG: 3,
+  UG: 3,
   TZ: 3,
-  HU: 2,
   BB: 2,
+  SV: 2,
+  TT: 2,
   GR: 2,
   SX: 2,
-  SV: 2,
+  HU: 2,
   RO: 2,
-  TT: 2,
   BN: 1,
-  KG: 1,
-  PK: 1,
-  MN: 1,
-  AG: 1,
-  LU: 1,
-  GG: 1,
-  MU: 1,
-  NP: 1,
   IQ: 1,
+  KG: 1,
+  LU: 1,
   OM: 1,
+  GP: 1,
   BQ: 1,
+  MU: 1,
+  AG: 1,
+  GG: 1,
+  MN: 1,
+  NP: 1,
+  PK: 1,
 };
 
-export type RailShareRow = [provider: string, pctSites: number];
+/**
+ * Mar 2026 online GPV in USD by ISO — same cohort + ordering as `UNMON_BY_ISO`.
+ * Sum of `prod.ecom.gpv_agg.grand_total_usd` for the cohort msids in Mar '26.
+ */
+export const ONLINE_GPV_USD_BY_ISO: Record<string, number> = {
+  IN: 1_447_075.34,
+  TR: 2_109_932.52,
+  IL: 5_469_306.92,
+  ZA: 1_191_653.33,
+  BR: 613_000.89,
+  CA: 9_208_696.86,
+  CL: 993_289.56,
+  CO: 396_398.72,
+  US: 2_385_992.49,
+  AR: 883_488.77,
+  JP: 573_450.34,
+  FR: 458_468.87,
+  BE: 592_975.55,
+  NL: 399_900.76,
+  UY: 255_128.35,
+  MX: 307_704.19,
+  GB: 333_118.19,
+  PE: 244_409.26,
+  UA: 276_467.67,
+  CH: 395_690.6,
+  NO: 162_256.11,
+  PL: 172_023.1,
+  SG: 148_238.25,
+  AU: 608_822.02,
+  NG: 70_553.25,
+  MY: 66_675.16,
+  SE: 81_195.74,
+  CR: 56_643.25,
+  GH: 74_279.5,
+  ID: 49_074.4,
+  PH: 63_215.46,
+  CZ: 65_955.58,
+  LV: 50_146.52,
+  ES: 215_205.61,
+  PA: 108_662.81,
+  GT: 17_103.33,
+  NZ: 66_253.32,
+  TH: 43_049.8,
+  EG: 24_435.99,
+  KE: 18_161.88,
+  IS: 163_910.89,
+  TW: 120_120.73,
+  GE: 13_153.84,
+  EE: 40_189.44,
+  KR: 23_436.68,
+  IE: 54_009.19,
+  PT: 26_035.1,
+  JM: 21_686.49,
+  LT: 14_795.07,
+  VI: 98_507.51,
+  HR: 18_697.12,
+  IT: 42_164.41,
+  MA: 26_898.22,
+  AW: 58_442.2,
+  BS: 87_323.57,
+  CW: 11_921.74,
+  DE: 54_115.12,
+  FI: 10_325.76,
+  ZM: 5_796.07,
+  AE: 3_040.8,
+  AT: 6_057.13,
+  RW: 2_699.46,
+  PY: 4_122.69,
+  RS: 9_394.23,
+  JE: 1_998.2,
+  HK: 5_009.03,
+  MT: 17_771.85,
+  BW: 7_394.85,
+  MC: 32_060.73,
+  SI: 9_247.35,
+  VN: 1_402.9,
+  NA: 407.32,
+  BM: 3_320.03,
+  RE: 3_118.06,
+  SK: 5_279.39,
+  HN: 754.82,
+  IM: 3_763.66,
+  CY: 7_040.86,
+  SA: 5_218.39,
+  PR: 27_941.41,
+  CI: 276.2,
+  AD: 555.38,
+  AM: 8_327.72,
+  VG: 3_770,
+  MK: 988.47,
+  BG: 54.82,
+  UG: 1_712.9,
+  TZ: 8.19,
+  BB: 174.5,
+  SV: 1_095.8,
+  TT: 3_943.17,
+  GR: 190.91,
+  SX: 15_835,
+  HU: 161.61,
+  RO: 1_129.56,
+  BN: 583.94,
+  IQ: 0.78,
+  KG: 251.97,
+  LU: 963.79,
+  OM: 88.42,
+  GP: 4_422.55,
+  BQ: 1_004,
+  MU: 1_172.88,
+  AG: 669.63,
+  GG: 44.18,
+  MN: 213.56,
+  NP: 94.61,
+  PK: 658.62,
+};
 
-const TOP_GP_RAILS_BY_ISO = {
+export type ProviderShareRow = [provider: string, pctSites: number];
+
+const TOP_GP_PROVIDERS_BY_ISO = {
   AD: [["monei", 100]],
   AE: [["ziina", 57.14], ["tappaymentsplugin", 14.29], ["velo site app", 14.29]],
   AG: [["fgw", 100]],
@@ -232,17 +356,17 @@ const TOP_GP_RAILS_BY_ISO = {
   TZ: [["direct_pay_online", 100]],
   UA: [["portmone", 69.47], ["monobank", 13.68], ["tranzzo", 6.84]],
   UG: [["direct_pay_online", 100]],
-  US: [["authorize_net_powered_by_pinwheel", 23.19], ["authorize", 23.19], ["priority_payments", 15.94]],
+  US: [["authorize_net_powered_by_pinwheel", 33.08], ["braintree", 24.93], ["authorize", 15.3]],
   UY: [["mercado_pago_new", 100]],
   VG: [["tilopay", 66.67], ["cx_pay", 33.33]],
   VI: [["magicpay", 100]],
   VN: [["sepay-provider", 100]],
   ZA: [["yoco", 71.02], ["peach_payment", 15.94], ["ikhokha_payments", 8.23]],
   ZM: [["direct_pay_online", 100]],
-} as const satisfies Record<string, RailShareRow[]>;
+} as const satisfies Record<string, ProviderShareRow[]>;
 
-export function topGpRailsForCountry(iso: string): RailShareRow[] | undefined {
-  return TOP_GP_RAILS_BY_ISO[iso as keyof typeof TOP_GP_RAILS_BY_ISO];
+export function topGpProvidersForCountry(iso: string): ProviderShareRow[] | undefined {
+  return TOP_GP_PROVIDERS_BY_ISO[iso as keyof typeof TOP_GP_PROVIDERS_BY_ISO];
 }
 
 const _sumUnmonByIso = Object.values(UNMON_BY_ISO).reduce((a, n) => a + n, 0);
@@ -250,4 +374,33 @@ if (import.meta.env.DEV && _sumUnmonByIso !== COHORT_TOTAL) {
   console.error(
     `[unmon-selling-sites-map-mar2026/mapCohortData] COHORT_TOTAL (${COHORT_TOTAL}) !== sum(UNMON_BY_ISO) (${_sumUnmonByIso}). Update both from the same Trino refresh.`,
   );
+}
+
+const _sumOnlineGpvUsd = Object.values(ONLINE_GPV_USD_BY_ISO).reduce((a, n) => a + n, 0);
+if (
+  import.meta.env.DEV &&
+  Math.abs(_sumOnlineGpvUsd - COHORT_ONLINE_GPV_USD_MAR2026) > 1
+) {
+  console.error(
+    `[unmon-selling-sites-map-mar2026/mapCohortData] COHORT_ONLINE_GPV_USD_MAR2026 (${COHORT_ONLINE_GPV_USD_MAR2026}) !== sum(ONLINE_GPV_USD_BY_ISO) (${_sumOnlineGpvUsd.toFixed(2)}). Update both from the same Trino refresh.`,
+  );
+}
+
+const _isoCountsKeys = new Set(Object.keys(UNMON_BY_ISO));
+const _isoGpvKeys = new Set(Object.keys(ONLINE_GPV_USD_BY_ISO));
+if (import.meta.env.DEV) {
+  for (const k of _isoCountsKeys) {
+    if (!_isoGpvKeys.has(k)) {
+      console.error(
+        `[unmon-selling-sites-map-mar2026/mapCohortData] ISO ${k} present in UNMON_BY_ISO but missing from ONLINE_GPV_USD_BY_ISO.`,
+      );
+    }
+  }
+  for (const k of _isoGpvKeys) {
+    if (!_isoCountsKeys.has(k)) {
+      console.error(
+        `[unmon-selling-sites-map-mar2026/mapCohortData] ISO ${k} present in ONLINE_GPV_USD_BY_ISO but missing from UNMON_BY_ISO.`,
+      );
+    }
+  }
 }

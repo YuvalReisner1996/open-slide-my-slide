@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "open-slide dev",
-    "build": "open-slide build && cp ../mbr/unmon_premium_nullcoll_combo.html dist/unmon-premium-nullcoll.html",
+    "build": "open-slide build && cp ../transaction_fee/unmon_premium_nullcoll_combo.html dist/unmon-premium-nullcoll.html",
     "preview": "open-slide preview"
   },
   "dependencies": {
